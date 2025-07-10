@@ -1,0 +1,17 @@
+fastapi
+uvicorn[standard]
+sqlalchemy
+psycopg2-binary
+pydantic
+python-dotenv
+mlflow
+scikit-learn
+xgboost
+shap
+boruta
+pandas
+pandas_ta
+numpy==1.24.4
+joblib
+yfinance
+lxml
