@@ -116,3 +116,15 @@ class MacroFeaturesPrepared(Base):
     interest_rate = Column(Numeric, nullable=True)
     exchange_rate_eur = Column(Numeric, nullable=True)
     exchange_rate_usd = Column(Numeric, nullable=True)
+
+class FundamentalsFeaturesPrepared(Base):
+    __tablename__ = "fundamentals_features_prepared"
+
+    id = Column(Integer, primary_key=True)
+    company_id = Column(Integer, ForeignKey("companies.id"), nullable=False)
+    date = Column(Date, nullable=False)
+    revenue = Column(Numeric, nullable=True)
+    operating_profit = Column(Numeric, nullable=True)
+    gross_profit = Column(Numeric, nullable=True)
+    net_profit = Column(Numeric, nullable=True)
+    ebitda = Column(Numeric, nullable=True)

@@ -17,4 +17,3 @@ yfinance
 lxml
 spacy
 tqdm
-pandas
