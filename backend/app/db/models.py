@@ -128,3 +128,22 @@ class FundamentalsFeaturesPrepared(Base):
     gross_profit = Column(Numeric, nullable=True)
     net_profit = Column(Numeric, nullable=True)
     ebitda = Column(Numeric, nullable=True)
+
+
+class MarketFeaturesPrepared(Base):
+    __tablename__ = "market_features_prepared"
+
+    id = Column(Integer, primary_key=True)
+    company_id = Column(Integer, ForeignKey("companies.id"), nullable=False)
+    date = Column(Date, nullable=False)
+    open = Column(Numeric, nullable=True)
+    high = Column(Numeric, nullable=True)
+    low = Column(Numeric, nullable=True)
+    close = Column(Numeric, nullable=True)
+    volume = Column(Integer, nullable=True)
+    sma_14 = Column(Numeric, nullable=True)
+    ema_14 = Column(Numeric, nullable=True)
+    rsi_14 = Column(Numeric, nullable=True)
+    macd = Column(Numeric, nullable=True)
+    macd_signal = Column(Numeric, nullable=True)
+    macd_hist = Column(Numeric, nullable=True)
