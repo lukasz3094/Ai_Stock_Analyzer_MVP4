@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, Integer, Numeric, Date, ForeignKey
+from sqlalchemy import Column, String, Integer, Numeric, Date, ForeignKey, Boolean
 from app.core.config import Base
 
 class Company(Base):
@@ -73,9 +73,34 @@ class NewsArticles(Base):
     __tablename__ = "news_articles"
 
     id = Column(Integer, primary_key=True)
-    company_id = Column(Integer, ForeignKey("companies.id"))
     date = Column(Date, nullable=False)
     headline = Column(String, nullable=False)
     content = Column(String, nullable=False)
     url = Column(String, nullable=False)
     source = Column(String, nullable=False)
+
+class CompanyAlias(Base):
+    __tablename__ = "company_aliases"
+
+    id = Column(Integer, primary_key=True)
+    company_id = Column(Integer, ForeignKey("companies.id"))
+    alias = Column(String, nullable=False)
+    is_primary = Column(Boolean, nullable=False)
+    source = Column(String, nullable=False)
+
+class ContextTag(Base):
+    __tablename__ = "context_tags"
+
+    id = Column(Integer, primary_key=True)
+    code = Column(String, unique=True, nullable=False)
+    name = Column(String, unique=True, nullable=False)
+
+class NewsContextLink(Base):
+    __tablename__ = "news_context_links"
+
+    id = Column(Integer, primary_key=True)
+    news_article_id = Column(Integer, ForeignKey("news_articles.id"))
+    company_id = Column(Integer, ForeignKey("companies.id"))
+    sector_id = Column(Integer, ForeignKey("sectors.id"))
+    context_tag_id = Column(Integer, ForeignKey("context_tags.id"))
+    confidence_score = Column(Numeric, nullable=False)
