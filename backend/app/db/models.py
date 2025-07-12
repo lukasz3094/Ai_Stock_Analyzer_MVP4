@@ -95,8 +95,8 @@ class ContextTag(Base):
     code = Column(String, unique=True, nullable=False)
     name = Column(String, unique=True, nullable=False)
 
-class NewsContextLink(Base):
-    __tablename__ = "news_context_links"
+class NewsFeaturesPrepared(Base):
+    __tablename__ = "news_features_prepared"
 
     id = Column(Integer, primary_key=True)
     news_article_id = Column(Integer, ForeignKey("news_articles.id"))
@@ -104,3 +104,15 @@ class NewsContextLink(Base):
     sector_id = Column(Integer, ForeignKey("sectors.id"))
     context_tag_id = Column(Integer, ForeignKey("context_tags.id"))
     confidence_score = Column(Numeric, nullable=False)
+
+class MacroFeaturesPrepared(Base):
+    __tablename__ = "macro_features_prepared"
+
+    id = Column(Integer, primary_key=True, index=True)
+    date = Column(Date, unique=True, nullable=False)
+    gdp = Column(Numeric, nullable=True)
+    cpi = Column(Numeric, nullable=True)
+    unemployment_rate = Column(Numeric, nullable=True)
+    interest_rate = Column(Numeric, nullable=True)
+    exchange_rate_eur = Column(Numeric, nullable=True)
+    exchange_rate_usd = Column(Numeric, nullable=True)

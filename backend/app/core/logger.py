@@ -1,9 +1,9 @@
 import logging
 
-logger = logging.getLogger("data_update_logger")
+logger = logging.getLogger("app")
 logger.setLevel(logging.INFO)
 
-file_handler = logging.FileHandler("data_update.log", encoding="utf-8")
+file_handler = logging.FileHandler("logs.log", encoding="utf-8")
 formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
 
 file_handler.setFormatter(formatter)
