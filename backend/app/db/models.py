@@ -147,3 +147,15 @@ class MarketFeaturesPrepared(Base):
     macd = Column(Numeric, nullable=True)
     macd_signal = Column(Numeric, nullable=True)
     macd_hist = Column(Numeric, nullable=True)
+
+class SelectedFeatures(Base):
+    __tablename__ = "selected_features"
+
+    id = Column(Integer, primary_key=True)
+    sector_id = Column(Integer, ForeignKey("sectors.id"), nullable=False)
+    run_date = Column(Date, nullable=False)
+    model_type = Column(String, nullable=False)
+    selected_features = Column(String, nullable=False)
+    total_features = Column(Integer, nullable=False)
+    feature_importances = Column(String, nullable=True)
+    notes = Column(String, nullable=True)

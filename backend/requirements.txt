@@ -17,3 +17,5 @@ yfinance
 lxml
 spacy
 tqdm
+boruta
+scikit-learn

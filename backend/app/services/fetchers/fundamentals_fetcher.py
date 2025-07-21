@@ -109,6 +109,23 @@ def fetch_fundamentals_from_bankier(ticker: str) -> pd.DataFrame:
         df.columns = headers_text
         df.set_index(df.columns[0], inplace=True)
         df = df.T.reset_index().rename(columns={"index": "kwartal"})
+
+        kwartal_map = {"I": "03-31", "II": "06-30", "III": "09-30", "IV": "12-31"}
+        kwartaly = df["kwartal"].str.extract(r'([IV]+)')
+        lata = df["kwartal"].str.extract(r'(\d{4})')
+
+        mask = kwartaly[0].isin(kwartal_map.keys()) & lata[0].notna()
+        df = df[mask].copy()
+
+        df["data"] = kwartaly[0].map(kwartal_map) + "-" + lata[0]
+        df["date"] = pd.to_datetime(df["data"], format="%m-%d-%Y", errors="coerce")
+        df = df[df["date"].notna()]
+        df.drop(columns=["kwartal", "data"], inplace=True)
+
+        if latest_date and (df["date"] <= latest_date).all():
+            logger.info(f"[{ticker}]: No newer data on page {page}, stopping.")
+            break
+
         all_dfs.append(df)
 
         page += 1
