@@ -1,4 +1,6 @@
-from sqlalchemy import Column, String, Integer, Numeric, Date, ForeignKey, Boolean
+from datetime import datetime
+from sqlalchemy import Column, String, Integer, Numeric, Date, ForeignKey, Boolean, DateTime
+from sqlalchemy.dialects.postgresql import JSONB
 from app.core.config import Base
 
 class Company(Base):
@@ -155,7 +157,40 @@ class SelectedFeatures(Base):
     sector_id = Column(Integer, ForeignKey("sectors.id"), nullable=False)
     run_date = Column(Date, nullable=False)
     model_type = Column(String, nullable=False)
-    selected_features = Column(String, nullable=False)
+    selected_features = Column(JSONB, nullable=False)
     total_features = Column(Integer, nullable=False)
-    feature_importances = Column(String, nullable=True)
+    feature_importances = Column(JSONB, nullable=True)
     notes = Column(String, nullable=True)
+
+class FeaturesFinalPrepared(Base):
+    __tablename__ = "features_final_prepared"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    company_id = Column(Integer, ForeignKey("companies.id"), nullable=False)
+    date = Column(Date, nullable=False)
+    open = Column(Numeric, nullable=True)
+    high = Column(Numeric, nullable=True)
+    low = Column(Numeric, nullable=True)
+    close = Column(Numeric, nullable=True)
+    volume = Column(Numeric, nullable=True)
+    sma_14 = Column(Numeric, nullable=True)
+    ema_14 = Column(Numeric, nullable=True)
+    rsi_14 = Column(Numeric, nullable=True)
+    macd = Column(Numeric, nullable=True)
+    macd_signal = Column(Numeric, nullable=True)
+    macd_hist = Column(Numeric, nullable=True)
+    revenue = Column(Numeric, nullable=True)
+    operating_profit = Column(Numeric, nullable=True)
+    gross_profit = Column(Numeric, nullable=True)
+    net_profit = Column(Numeric, nullable=True)
+    ebitda = Column(Numeric, nullable=True)
+    gdp = Column(Numeric, nullable=True)
+    cpi = Column(Numeric, nullable=True)
+    unemployment_rate = Column(Numeric, nullable=True)
+    interest_rate = Column(Numeric, nullable=True)
+    exchange_rate_eur = Column(Numeric, nullable=True)
+    exchange_rate_usd = Column(Numeric, nullable=True)
+    confidence_score_avg = Column(Numeric, nullable=True)
+    confidence_score_sum = Column(Numeric, nullable=True)
+    news_count = Column(Integer, default=0)
+    created_at = Column(DateTime, default=datetime.now)
