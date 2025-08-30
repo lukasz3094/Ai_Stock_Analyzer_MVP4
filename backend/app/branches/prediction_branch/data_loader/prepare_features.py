@@ -49,12 +49,12 @@ def prepare_features(sector_id: int, end_date: str, mode: str = "auto"):
             if macro_min:
                 min_dates.append(macro_min)
 
-            news_min = db.query(func.min(NewsArticles.date))\
-                .join(NewsFeaturesPrepared, NewsArticles.id == NewsFeaturesPrepared.news_article_id)\
-                .filter(NewsFeaturesPrepared.company_id.in_(company_ids),
-                        NewsArticles.date <= end_date).scalar()
-            if news_min:
-                min_dates.append(news_min)
+            # news_min = db.query(func.min(NewsArticles.date))\
+            #     .join(NewsFeaturesPrepared, NewsArticles.id == NewsFeaturesPrepared.news_article_id)\
+            #     .filter(NewsFeaturesPrepared.company_id.in_(company_ids),
+            #             NewsArticles.date <= end_date).scalar()
+            # if news_min:
+            #     min_dates.append(news_min)
 
             start_date = max(min_dates) if min_dates else None
 
@@ -86,17 +86,17 @@ def prepare_features(sector_id: int, end_date: str, mode: str = "auto"):
                 "SELECT * FROM macro_features_prepared", db.bind
             ).drop(columns="id", errors="ignore")
 
-            news = pd.read_sql_query(f"""
-                SELECT a.date,
-                       AVG(f.confidence_score) as confidence_score_avg,
-                       SUM(f.confidence_score) as confidence_score_sum,
-                       COUNT(*) as news_count
-                FROM news_features_prepared f
-                JOIN news_articles a ON f.news_article_id = a.id
-                WHERE f.company_id = {company_id}
-                  AND f.confidence_score >= 0.7
-                GROUP BY a.date
-            """, db.bind)
+            # news = pd.read_sql_query(f"""
+            #     SELECT a.date,
+            #            AVG(f.confidence_score) as confidence_score_avg,
+            #            SUM(f.confidence_score) as confidence_score_sum,
+            #            COUNT(*) as news_count
+            #     FROM news_features_prepared f
+            #     JOIN news_articles a ON f.news_article_id = a.id
+            #     WHERE f.company_id = {company_id}
+            #       AND f.confidence_score >= 0.7
+            #     GROUP BY a.date
+            # """, db.bind)
 
             df = pd.DataFrame({"date": dates})
             df["company_id"] = company_id
@@ -104,14 +104,14 @@ def prepare_features(sector_id: int, end_date: str, mode: str = "auto"):
             market["date"] = pd.to_datetime(market["date"])
             fundamentals["date"] = pd.to_datetime(fundamentals["date"])
             macro["date"] = pd.to_datetime(macro["date"])
-            news["date"] = pd.to_datetime(news["date"])
+            # news["date"] = pd.to_datetime(news["date"])
 
             df = df.merge(market, on=["company_id", "date"], how="left")
             df = pd.merge_asof(df.sort_values("date"), fundamentals.sort_values("date"),
                                by="company_id", on="date", direction="backward")
             df = pd.merge_asof(df.sort_values("date"), macro.sort_values("date"),
                                on="date", direction="backward")
-            df = df.merge(news, on="date", how="left")
+            # df = df.merge(news, on="date", how="left")
 
             all_rows.append(df)
 
@@ -137,4 +137,4 @@ def prepare_features_for_all_sectors(end_date: str, mode: str = "auto"):
         prepare_features(sector_id, end_date, mode)
 
 if __name__ == "__main__":
-    prepare_features_for_all_sectors(end_date="2024-11-30", mode="auto")
+    prepare_features_for_all_sectors(end_date="2024-12-31", mode="auto")

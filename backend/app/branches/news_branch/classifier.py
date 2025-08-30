@@ -1,73 +1,96 @@
-from app.db.models import Company, NewsFeaturesPrepared
-from app.core.config import SessionLocal
 from app.services.getters.companies_getter import get_all_company_aliases
 from app.services.getters.sectors_getter import get_all_context_tags
-from sqlalchemy.orm import Session
-from multiprocessing import Pool, cpu_count
-from tqdm import tqdm
-from math import floor
 import spacy
+from spacy.matcher import PhraseMatcher
+import torch
+import gc
 
 nlp = None
-BATCH_SIZE = 500
+matcher = None
+alias_map = {}
+context_tags = []
+sentiment_pipeline = None
+
+model_name = "bardsai/twitter-sentiment-pl-base"
 
 def init_worker():
-    global nlp
-    nlp = spacy.load("pl_core_news_lg")
+    global nlp, matcher, alias_map, context_tags, sentiment_pipeline
 
-def classify_news_article(news_dict, company_aliases, context_tags):
-    global nlp
-    text = f"{news_dict['headline']} {news_dict['content']}".lower()
-    doc = nlp(text)
-
-    company_matches = []
-    for alias in company_aliases:
-        if alias['alias'].lower() in text:
-            company_matches.append(alias['company_id'])
-
-    tag_scores = {
-        tag['id']: doc.similarity(nlp(tag['name'].lower()))
-        for tag in context_tags
-    }
-
-    best_context_tag_id = max(tag_scores, key=tag_scores.get)
-    best_score = tag_scores[best_context_tag_id]
-
-    return {
-        "news_article_id": news_dict['id'],
-        "company_ids": list(set(company_matches)),
-        "context_tag_id": best_context_tag_id,
-        "confidence_score": best_score
-    }
-
-def load_lookup_data():
-    db = SessionLocal()
+    nlp = spacy.load("pl_core_news_lg", exclude=["parser", "tagger", "lemmatizer"])
     try:
-        aliases = get_all_company_aliases()
-        tags = get_all_context_tags()
-        alias_list = [{"company_id": a.company_id, "alias": a.alias} for a in aliases]
-        tag_list = [{"id": t.id, "name": t.name} for t in tags]
-        return alias_list, tag_list
-    finally:
-        db.close()
+        spacy.prefer_gpu()
+    except:
+        pass
 
-def classify_batch(args):
-    news_batch, company_aliases, context_tags = args
-    return [
-        classify_news_article(news, company_aliases, context_tags)
-        for news in news_batch
+    matcher = PhraseMatcher(nlp.vocab, attr="LOWER")
+    company_aliases = [
+        {"company_id": a.company_id, "alias": a.alias.lower()}
+        for a in get_all_company_aliases()
+    ]
+    patterns = [nlp.make_doc(alias["alias"]) for alias in company_aliases]
+    matcher.add("COMPANY_ALIASES", patterns)
+    alias_map = {alias["alias"]: alias["company_id"] for alias in company_aliases}
+
+    context_tags = [
+        {"id": t.id, "name": t.name}
+        for t in get_all_context_tags()
     ]
 
-def classify_news_articles(news_articles):
-    news_dicts = [{"id": n.id, "headline": n.headline, "content": n.content} for n in news_articles]
-    batches = [news_dicts[i:i + BATCH_SIZE] for i in range(0, len(news_dicts), BATCH_SIZE)]
+    device = 0 if torch.cuda.is_available() else -1
 
-    company_aliases, context_tags = load_lookup_data()
-    task_args = [(batch, company_aliases, context_tags) for batch in batches]
+    from transformers import AutoTokenizer, AutoModelForSequenceClassification, pipeline
 
-    all_results = []
-    with Pool(floor(cpu_count() / 2), initializer=init_worker) as pool:
-        for batch_results in tqdm(pool.imap_unordered(classify_batch, task_args), total=len(task_args), desc="Classifying"):
-            all_results.extend(batch_results)
+    tokenizer = AutoTokenizer.from_pretrained(model_name)
+    model = AutoModelForSequenceClassification.from_pretrained(model_name)
 
-    return all_results
+    sentiment_pipeline = pipeline(
+        "text-classification",
+        model=model,
+        tokenizer=tokenizer,
+        device=device
+    )
+    print(f"Device set to use {'GPU' if device == 0 else 'CPU'}")
+
+def classify_batch_in_process(news_batch):
+    results = []
+    for news_dict in news_batch:
+        # Upewniamy się, że wszystkie pola są w formacie tekstowym
+        headline = news_dict.get("headline", "")
+        content = news_dict.get("content", "")
+        text = f"{headline} {content[:100]}".lower()
+
+        doc = nlp(text)
+
+        # Sentiment analysis
+        sentiment_result = sentiment_pipeline(text)[0]
+        label = sentiment_result['label'].lower()
+        score = sentiment_result['score']
+
+        # Company alias matching
+        matches = matcher(doc)
+        company_ids = list({
+            alias_map.get(str(doc[start:end]).lower())
+            for _, start, end in matches
+            if alias_map.get(str(doc[start:end]).lower()) is not None
+        })
+
+        # Context tag similarity
+        tag_scores = {
+            tag['id']: doc.similarity(nlp(tag['name'].lower()))
+            for tag in context_tags
+        }
+        best_context_tag_id = max(tag_scores, key=tag_scores.get)
+        confidence_score = tag_scores[best_context_tag_id]
+
+        results.append({
+            "news_article_id": news_dict["id"],
+            "company_ids": list(set(company_ids)),
+            "context_tag_id": best_context_tag_id,
+            "confidence_score": confidence_score,
+            "sentiment_score": score,
+            "sentiment_label": label
+        })
+
+    gc.collect()
+    return results
+

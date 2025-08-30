@@ -1,21 +1,33 @@
+# API
 fastapi
 uvicorn[standard]
+python-dotenv
+pydantic
+
+# DB
 sqlalchemy
 psycopg2-binary
-pydantic
-python-dotenv
+
+# ML
 mlflow
-scikit-learn
-xgboost
-shap
-boruta
+prefect
+
+# Data & Utils
 pandas
-pandas_ta
 numpy==1.24.4
 joblib
-yfinance
-lxml
-spacy
 tqdm
-boruta
+lxml
+yfinance
+pandas_ta
+
+# Modeling
 scikit-learn
+shap
+boruta
+
+# Transformers stack
+transformers
+tokenizers
+
+# spacy

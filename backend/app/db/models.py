@@ -1,5 +1,6 @@
 from datetime import datetime
-from sqlalchemy import Column, String, Integer, Numeric, Date, ForeignKey, Boolean, DateTime
+from app.db.enums import SentimentLabel
+from sqlalchemy import Column, String, Integer, Numeric, Date, ForeignKey, Boolean, DateTime, Enum, ARRAY
 from sqlalchemy.dialects.postgresql import JSONB
 from app.core.config import Base
 
@@ -8,7 +9,6 @@ class Company(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     ticker = Column(String(10), unique=True, nullable=False)
-    ticker_alt = Column(String(10), nullable=True)
     name = Column(String, nullable=False)
     ticker_bankier = Column(String(10), nullable=True)
     sector_id = Column(Integer, ForeignKey("sectors.id"))
@@ -97,6 +97,12 @@ class ContextTag(Base):
     code = Column(String, unique=True, nullable=False)
     name = Column(String, unique=True, nullable=False)
 
+class CompanyContextTagsList(Base):
+    __tablename__ = "company_context_tags_list"
+
+    company_id = Column(Integer, ForeignKey("companies.id", ondelete="CASCADE"), primary_key=True)
+    context_tag_ids = Column(ARRAY(Integer), nullable=False)
+
 class NewsFeaturesPrepared(Base):
     __tablename__ = "news_features_prepared"
 
@@ -106,6 +112,8 @@ class NewsFeaturesPrepared(Base):
     sector_id = Column(Integer, ForeignKey("sectors.id"))
     context_tag_id = Column(Integer, ForeignKey("context_tags.id"))
     confidence_score = Column(Numeric, nullable=False)
+    sentiment_score = Column(Numeric, nullable=True)
+    sentiment_label = Column(Enum(SentimentLabel), nullable=True)
 
 class MacroFeaturesPrepared(Base):
     __tablename__ = "macro_features_prepared"
@@ -190,7 +198,7 @@ class FeaturesFinalPrepared(Base):
     interest_rate = Column(Numeric, nullable=True)
     exchange_rate_eur = Column(Numeric, nullable=True)
     exchange_rate_usd = Column(Numeric, nullable=True)
-    confidence_score_avg = Column(Numeric, nullable=True)
-    confidence_score_sum = Column(Numeric, nullable=True)
-    news_count = Column(Integer, default=0)
     created_at = Column(DateTime, default=datetime.now)
+    # confidence_score_avg = Column(Numeric, nullable=True)
+    # confidence_score_sum = Column(Numeric, nullable=True)
+    # news_count = Column(Integer, default=0)

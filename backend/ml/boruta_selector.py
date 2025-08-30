@@ -2,7 +2,7 @@ from multiprocessing import Pool, cpu_count
 from datetime import date
 
 from boruta import BorutaPy
-from sklearn.ensemble import ExtraTreesRegressor
+from sklearn.ensemble import RandomForestRegressor
 from sklearn.preprocessing import StandardScaler
 
 from sqlalchemy import select
@@ -46,22 +46,41 @@ def run_boruta_for_sector(sector_id: int):
         X = X.fillna(X.mean(numeric_only=True))
         X_scaled = StandardScaler().fit_transform(X)
 
+        if X_scaled.shape[1] == 0:
+            return f"Sector {sector_id} — no numeric features"
+
         # 4. Fit Boruta
-        forest = ExtraTreesRegressor(n_jobs=-1, n_estimators=200, max_depth=7, random_state=42)
-        boruta = BorutaPy(estimator=forest, n_estimators='auto', max_iter=100, verbose=0, random_state=42)
+        forest = RandomForestRegressor(
+            n_jobs=-1, n_estimators=200, max_depth=7, random_state=42
+        )
+        boruta = BorutaPy(
+            estimator=forest,
+            n_estimators='auto',
+            max_iter=300,
+            verbose=0,
+            random_state=42
+        )
         boruta.fit(X_scaled, y)
 
-        selected = X.columns[boruta.support_].tolist()
-        importances = boruta.ranking_.tolist()
+        # 5. Extract results
+        selected_mask = boruta.support_
+        if not any(selected_mask):
+            return f"Sector {sector_id} — no features selected by Boruta"
 
-        # 5. Save results
+        selected = X.columns[selected_mask].tolist()
+        all_importances = {
+            feature: int(rank)
+            for feature, rank in zip(X.columns, boruta.ranking_)
+        }
+
+        # 6. Save to database
         record = SelectedFeatures(
             sector_id=sector_id,
             run_date=date.today(),
             model_type="boruta",
             selected_features=selected,
             total_features=len(X.columns),
-            feature_importances=importances,
+            feature_importances=all_importances,
             notes=None
         )
 
@@ -83,7 +102,7 @@ def run_boruta_for_all_sectors(parallel=True):
     db.close()
 
     if parallel:
-        with Pool(processes=max(1, cpu_count() - 1)) as pool:
+        with Pool(processes=1) as pool:
             for result in tqdm(pool.imap_unordered(run_boruta_for_sector, sectors), total=len(sectors)):
                 print(result)
     else:
