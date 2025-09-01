@@ -18,13 +18,11 @@ def run_boruta_for_sector(sector_id: int):
     db = SessionLocal()
 
     try:
-        # 1. Get company_ids
         companies = db.query(Company.id).filter(Company.sector_id == sector_id).all()
         company_ids = [company.id for company in companies]
         if not company_ids:
             return f"Sector {sector_id} — no companies"
 
-        # 2. Query feature data directly using ORM
         query = db.query(FeaturesFinalPrepared).filter(
             FeaturesFinalPrepared.company_id.in_(company_ids),
             FeaturesFinalPrepared.date <= date(2024, 12, 31)
@@ -39,9 +37,8 @@ def run_boruta_for_sector(sector_id: int):
         if df.empty:
             return f"Sector {sector_id} — no target values (close)"
 
-        # 3. Prepare X and y
         y = df["close"]
-        X = df.drop(columns=["company_id", "date", "close"])
+        X = df.drop(columns=["id", "company_id", "date", "close"])
         X = X.select_dtypes(include=[np.number])
         X = X.fillna(X.mean(numeric_only=True))
         X_scaled = StandardScaler().fit_transform(X)
@@ -49,7 +46,6 @@ def run_boruta_for_sector(sector_id: int):
         if X_scaled.shape[1] == 0:
             return f"Sector {sector_id} — no numeric features"
 
-        # 4. Fit Boruta
         forest = RandomForestRegressor(
             n_jobs=-1, n_estimators=200, max_depth=7, random_state=42
         )
@@ -62,7 +58,6 @@ def run_boruta_for_sector(sector_id: int):
         )
         boruta.fit(X_scaled, y)
 
-        # 5. Extract results
         selected_mask = boruta.support_
         if not any(selected_mask):
             return f"Sector {sector_id} — no features selected by Boruta"
@@ -73,7 +68,6 @@ def run_boruta_for_sector(sector_id: int):
             for feature, rank in zip(X.columns, boruta.ranking_)
         }
 
-        # 6. Save to database
         record = SelectedFeatures(
             sector_id=sector_id,
             run_date=date.today(),
