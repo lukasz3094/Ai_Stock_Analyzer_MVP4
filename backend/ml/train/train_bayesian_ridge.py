@@ -3,6 +3,7 @@ import os, json
 from pathlib import Path
 from datetime import datetime
 from typing import Dict, List, Optional, Tuple
+import matplotlib.pyplot as plt
 
 import numpy as np
 import pandas as pd
@@ -14,6 +15,7 @@ from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
 from sklearn.linear_model import BayesianRidge
 from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
+from sklearn.model_selection import TimeSeriesSplit
 
 from app.branches.prediction_branch.data_loader.features_loader import get_data_for_model_per_sector
 
@@ -24,15 +26,71 @@ os.environ.setdefault("MLFLOW_HTTP_REQUEST_MAX_RETRIES", "1")
 ALWAYS_KEEP = ("date", "company_id", "close")
 
 Y_CONFIG = {
-    "horizon": 1,
+    "horizon": 5,
     "style": "log",
     "use_adjusted": True,
-    "winsorize": None,
+    "winsorize": 0.005,
     "scale": "fraction",
+    "neutralize_sector": True,
 }
 
 
 # -------- helpers --------
+def timeseries_cv_metrics(X: pd.DataFrame, y: pd.Series, n_splits: int = 5, gap: int = None) -> dict:
+    if gap is None:
+        gap = Y_CONFIG.get("horizon", 1)
+    tscv = TimeSeriesSplit(n_splits=n_splits, gap=gap)
+    maes, rmses = [], []
+    for tr_idx, va_idx in tscv.split(X):
+        pipe = Pipeline([
+            ("scaler", StandardScaler(with_mean=True, with_std=True)),
+            ("model", BayesianRidge())
+        ])
+        pipe.fit(X.iloc[tr_idx], y.iloc[tr_idx])
+        p = pipe.predict(X.iloc[va_idx])
+        maes.append(mean_absolute_error(y.iloc[va_idx], p))
+        rmses.append(np.sqrt(mean_squared_error(y.iloc[va_idx], p)))
+    return {
+        "cv_mae_mean": float(np.mean(maes)),
+        "cv_mae_std": float(np.std(maes)),
+        "cv_rmse_mean": float(np.mean(rmses)),
+        "cv_rmse_std": float(np.std(rmses)),
+    }
+
+def _to_bp(x: float) -> float:
+    return 1e4 * x  # 1 bp = 0.0001
+
+def _sign_hit_rate(y_true: pd.Series, y_pred: pd.Series) -> float:
+    s_true = np.sign(y_true.values)
+    s_pred = np.sign(y_pred.values)
+    return float((s_true == s_pred).mean())
+
+def _baselines(y_train: pd.Series, train_meta: pd.DataFrame,
+               y_test: pd.Series,  test_meta: pd.DataFrame) -> dict:
+    zero_train = np.zeros_like(y_train)
+    zero_test  = np.zeros_like(y_test)
+
+    h = int(Y_CONFIG.get("horizon", 1))
+    prev_non_overlap = (test_meta
+                        .sort_values(["company_id","date"])
+                        .groupby("company_id")["y"]
+                        .shift(h))
+    prev_non_overlap = prev_non_overlap.reindex(y_test.index).fillna(0.0)
+
+    out = {}
+    out["baseline0_train_mae"] = mean_absolute_error(y_train, zero_train)
+    out["baseline0_test_mae"]  = mean_absolute_error(y_test,  zero_test)
+    out["baseline_prev_nonoverlap_test_mae"] = mean_absolute_error(y_test, prev_non_overlap)
+    out["baseline0_test_hit_rate"] = _sign_hit_rate(y_test, pd.Series(zero_test, index=y_test.index))
+    out["baseline_prev_nonoverlap_test_hit_rate"] = _sign_hit_rate(y_test, prev_non_overlap)
+    return out
+
+
+def _neutralize_sector_mean(df: pd.DataFrame) -> pd.DataFrame:
+    adj = df.copy()
+    daily_mean = adj.groupby("date")["y"].transform("mean")
+    adj["y"] = adj["y"] - daily_mean
+    return adj
 
 def _select_price_column(df: pd.DataFrame, use_adjusted: bool) -> str:
     if use_adjusted:
@@ -48,7 +106,6 @@ def _compute_forward_return(
     horizon: int,
     style: str = "log",
 ) -> pd.Series:
-    # ważne: sort po (company_id, date)
     df = df.sort_values([company_col, "date"]).copy()
     s = df[price_col].astype(float)
     fwd = df.groupby(company_col)[price_col].shift(-horizon) / s
@@ -117,6 +174,11 @@ def _prepare_xy(
     df = df.copy()
     df["date"] = pd.to_datetime(df["date"], utc=False).dt.tz_localize(None)
 
+    trade_mask = df["close"].notna()
+    if "volume" in df.columns:
+        trade_mask &= df["volume"].notna() & (df["volume"].astype(float) > 0)
+    df = df.loc[trade_mask].copy()
+
     price_col = _select_price_column(df, use_adjusted=Y_CONFIG["use_adjusted"])
     if price_col not in df.columns:
         raise ValueError(f"Required price column '{price_col}' not found.")
@@ -135,6 +197,15 @@ def _prepare_xy(
     y_name = f"y_{Y_CONFIG['style']}_h{Y_CONFIG['horizon']}_{Y_CONFIG['scale']}"
 
     df["y"] = y
+
+    if Y_CONFIG["neutralize_sector"]:
+        df = _neutralize_sector_mean(df)
+
+    if Y_CONFIG["winsorize"]:
+        alpha = float(Y_CONFIG["winsorize"])
+        lo = df["y"].quantile(alpha)
+        hi = df["y"].quantile(1 - alpha)
+        df["y"] = df["y"].clip(lo, hi)
 
     blacklist = set(ALWAYS_KEEP) | {"y", "id", "sector_id", "created_at"}
     if selected_features:
@@ -157,8 +228,10 @@ def _prepare_xy(
             f"Empty X after filtering. Used cols: {x_cols}. "
             f"Train rows: {len(X_train)}, Test rows: {len(X_test)}."
         )
-
-    return X_train, y_train, X_test, y_test, x_cols, y_name
+    
+    train_meta = train.loc[X_train.index, ["company_id","date","y"]].copy()
+    test_meta  = test.loc[X_test.index,  ["company_id","date","y"]].copy()
+    return X_train, y_train, X_test, y_test, x_cols, y_name, train_meta, test_meta
 
 def _evaluate(model: Pipeline, X: pd.DataFrame, y: pd.Series) -> Dict[str, float]:
     pred = model.predict(X)
@@ -174,7 +247,6 @@ def _evaluate(model: Pipeline, X: pd.DataFrame, y: pd.Series) -> Dict[str, float
     }
 
 # -------- public --------
-
 def train_bayesianridge_for_sector(
     sector_id: int,
     *,
@@ -192,7 +264,7 @@ def train_bayesianridge_for_sector(
 
     df = _clip_rolling_window(df, rolling_window_days)
 
-    Xtr, ytr, Xte, yte, used_cols, y_name = _prepare_xy(df, selected_features, date_split)
+    Xtr, ytr, Xte, yte, used_cols, y_name, train_meta, test_meta = _prepare_xy(df, selected_features, date_split)
 
     model_params = {}
     scaler_params = {"with_mean": True, "with_std": True}
@@ -217,6 +289,9 @@ def train_bayesianridge_for_sector(
         y_name=y_name,
     )
 
+    params_dict["target_name"] = f"y_{Y_CONFIG['style']}_h{Y_CONFIG['horizon']}_{Y_CONFIG['scale']}"
+    params_dict["target_config"] = Y_CONFIG
+
     params_path = _save_params_json(params_dict, sector_id, artifacts_dir)
 
     if tracking_uri:
@@ -238,12 +313,50 @@ def train_bayesianridge_for_sector(
         mlflow.log_text(json.dumps(used_cols, ensure_ascii=False, indent=2), "used_features.json")
         mlflow.log_artifact(str(params_path))
 
+        cv = timeseries_cv_metrics(Xtr, ytr, n_splits=5, gap=Y_CONFIG["horizon"])
+        mlflow.log_metrics(cv)
+
         pipe.fit(Xtr, ytr)
 
-        tr = _evaluate(pipe, Xtr, ytr)
-        te = _evaluate(pipe, Xte, yte)
+        pred_tr = pipe.predict(Xtr)
+        pred_te = pipe.predict(Xte)
+
+        pred_df = test_meta.copy()
+        pred_df["y_true"] = yte.values
+        pred_df["y_pred"] = pred_te
+
+        tr = {
+            "mae": mean_absolute_error(ytr, pred_tr),
+            "rmse": np.sqrt(mean_squared_error(ytr, pred_tr)),
+            "r2": r2_score(ytr, pred_tr),
+        }
+        te = {
+            "mae": mean_absolute_error(yte, pred_te),
+            "rmse": np.sqrt(mean_squared_error(yte, pred_te)),
+            "r2": r2_score(yte, pred_te),
+        }
+
+        tr_bp = {f"{k}_bp": _to_bp(v) for k, v in tr.items() if k in ("mae","rmse")}
+        te_bp = {f"{k}_bp": _to_bp(v) for k, v in te.items() if k in ("mae","rmse")}
+
+        metrics_extra = {
+            "train_hit_rate": _sign_hit_rate(ytr, pd.Series(pred_tr, index=ytr.index)),
+            "test_hit_rate":  _sign_hit_rate(yte, pd.Series(pred_te, index=yte.index)),
+        }
+        if len(yte) >= 2:
+            try:
+                mlflow.log_metric("test_ic_pearson_np", float(np.corrcoef(yte.to_numpy(), pred_te)[0, 1]))
+            except Exception:
+                pass
+
+        base = _baselines(ytr, train_meta, yte, test_meta)
+        mlflow.log_metrics(base)
+
         mlflow.log_metrics({f"train_{k}": v for k, v in tr.items()})
         mlflow.log_metrics({f"test_{k}": v for k, v in te.items()})
+        mlflow.log_metrics({f"train_{k}": v for k, v in tr_bp.items()})
+        mlflow.log_metrics({f"test_{k}": v for k, v in te_bp.items()})
+        mlflow.log_metrics(metrics_extra)
 
         signature = infer_signature(Xtr, pipe.predict(Xtr))
         mlflow.sklearn.log_model(
@@ -257,6 +370,22 @@ def train_bayesianridge_for_sector(
         result = mlflow.register_model(model_uri=f"runs:/{run.info.run_id}/model", name=reg_name)
         mlflow.set_tag("registered_model_version", result.version)
 
+        cid = pred_df.groupby("company_id").size().idxmax()
+        sample = pred_df[pred_df["company_id"] == cid].sort_values("date").tail(300)
+
+        fig, ax = plt.subplots(figsize=(10,4))
+        ax.plot(sample["date"], sample["y_true"], label="y_true")
+        ax.plot(sample["date"], sample["y_pred"], label="y_pred", alpha=0.8)
+        if "y_pred_cal" in sample:
+            ax.plot(sample["date"], sample["y_pred_cal"], label="y_pred_cal", alpha=0.8, linestyle="--")
+        ax.axhline(0, linewidth=1)
+        ax.set_title(f"Sector {sector_id} - company_id={cid} (test)")
+        ax.set_ylabel("log-return (fraction)")
+        ax.legend()
+        fig.autofmt_xdate()
+        mlflow.log_figure(fig, f"plots/series_company_{cid}.png")
+        plt.close(fig)
+
         return {
             "sector_id": sector_id,
             "model_name": reg_name,
@@ -267,13 +396,12 @@ def train_bayesianridge_for_sector(
             "x_used": used_cols,
         }
 
-
 if __name__ == "__main__":
     res = train_bayesianridge_for_sector(
         sector_id=7,
         date_split="2023-12-31",
         rolling_window_days=540,  # lub None dla pełnej historii
-        selected_features=None,   # lub selected, jeśli chcesz rozróżnić czy 'close' było wybrane przez Borutę
+        selected_features=None,
         tracking_uri="http://127.0.0.1:5000",
         experiment_name="stock-forecast-mvp4",
     )
