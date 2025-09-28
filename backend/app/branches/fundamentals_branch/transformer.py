@@ -16,7 +16,12 @@ def transform_fundamentals(df: pd.DataFrame) -> pd.DataFrame:
     df = df.set_index("date").reindex(full_index)
     df["company_id"] = company_id
 
+    cols_to_replace = ["revenue", "operating_profit", "gross_profit", "net_profit", "ebitda"]
+    for col in cols_to_replace:
+        if col in df.columns:
+            df[col] = df[col].replace(0, pd.NA)
+
     df = df.ffill().reset_index().rename(columns={"index": "date"})
-    df = df.dropna(subset=["revenue", "operating_profit", "gross_profit", "net_profit", "ebitda"])
+    df = df.dropna(subset=cols_to_replace)
 
     return df

@@ -12,6 +12,7 @@ class Company(Base):
     name = Column(String, nullable=False)
     ticker_bankier = Column(String(10), nullable=True)
     sector_id = Column(Integer, ForeignKey("sectors.id"))
+    is_active = Column(Boolean, nullable=False)
 
 class Sector(Base):
     __tablename__ = "sectors"
@@ -202,3 +203,63 @@ class FeaturesFinalPrepared(Base):
     # confidence_score_avg = Column(Numeric, nullable=True)
     # confidence_score_sum = Column(Numeric, nullable=True)
     # news_count = Column(Integer, default=0)
+
+class FeaturesFinalPreparedV2(Base):
+    __tablename__ = "features_final_prepared_v2"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    company_id = Column(Integer, ForeignKey("companies.id"), nullable=False)
+    date = Column(Date, nullable=False)
+    open = Column(Numeric, nullable=True)
+    high = Column(Numeric, nullable=True)
+    low = Column(Numeric, nullable=True)
+    close = Column(Numeric, nullable=True)
+    volume = Column(Numeric, nullable=True)
+    revenue = Column(Numeric, nullable=True)
+    operating_profit = Column(Numeric, nullable=True)
+    gross_profit = Column(Numeric, nullable=True)
+    net_profit = Column(Numeric, nullable=True)
+    ebitda = Column(Numeric, nullable=True)
+    gdp = Column(Numeric, nullable=True)
+    cpi = Column(Numeric, nullable=True)
+    unemployment_rate = Column(Numeric, nullable=True)
+    interest_rate = Column(Numeric, nullable=True)
+    exchange_rate_eur = Column(Numeric, nullable=True)
+    exchange_rate_usd = Column(Numeric, nullable=True)
+    created_at = Column(DateTime, default=datetime.now)
+
+class FeaturesFinalPreparedV3(Base):
+    __tablename__ = "features_final_prepared_v3"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    company_id = Column(Integer, ForeignKey("companies.id"), nullable=False)
+    date = Column(Date, nullable=False)
+
+    close = Column(Numeric, nullable=True)
+    volume = Column(Numeric, nullable=True)
+
+    ret_1d = Column(Numeric, nullable=True)
+    ret_5d = Column(Numeric, nullable=True)
+    ret_20d = Column(Numeric, nullable=True)
+    vol_10d = Column(Numeric, nullable=True)
+    vol_20d = Column(Numeric, nullable=True)
+
+    px_sma14_dist = Column(Numeric, nullable=True)
+    px_ema14_dist = Column(Numeric, nullable=True)
+    rsi_c = Column(Numeric, nullable=True)
+    macd_hist_norm = Column(Numeric, nullable=True)
+    macd_minus_signal = Column(Numeric, nullable=True)
+    vol_pressure_20d = Column(Numeric, nullable=True)
+
+    revenue_yoy = Column(Numeric, nullable=True)
+    ebitda_yoy = Column(Numeric, nullable=True)
+    net_profit_yoy = Column(Numeric, nullable=True)
+    gross_profit_yoy = Column(Numeric, nullable=True)
+
+    gdp_yoy = Column(Numeric, nullable=True)
+    cpi_yoy = Column(Numeric, nullable=True)
+    rate_change = Column(Numeric, nullable=True)
+    fx_eur_20d = Column(Numeric, nullable=True)
+    fx_usd_20d = Column(Numeric, nullable=True)
+
+    created_at = Column(DateTime, default=datetime.now)

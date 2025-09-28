@@ -3,10 +3,12 @@ import pandas as pd
 import numpy as np
 from app.core.logger import logger
 from app.core.config import SessionLocal
-from app.db.models import Company, FeaturesFinalPrepared, SelectedFeatures
+from app.db.models import Company, FeaturesFinalPrepared, FeaturesFinalPreparedV2, FeaturesFinalPreparedV3, SelectedFeatures
 from sqlalchemy import desc
 
 ALWAYS_KEEP: Tuple[str, ...] = ("date", "company_id", "close")
+
+# V1 with calculations
 
 def _extract_feature_names(payload) -> List[str]:
     if payload is None:
@@ -53,7 +55,7 @@ def load_selected_feature_names_for_sector(sector_id: int, model_type: str = "bo
     finally:
         db.close()
 
-def load_all_final_prepared_features_for_sector(sector_id: int) -> pd.DataFrame:
+def load_all_final_prepared_features_for_sector_v1(sector_id: int) -> pd.DataFrame:
     db = SessionLocal()
     try:
         companies = db.query(Company.id).filter(Company.sector_id == sector_id).all()
@@ -85,9 +87,9 @@ def filter_final_by_selected(df: pd.DataFrame, selected: Iterable[str], always_k
 
     return df.loc[:, keep].copy()
 
-def get_data_for_model_per_sector(sector_id: int, model_type: str = "boruta") -> pd.DataFrame:
+def get_data_for_model_per_sector_v1(sector_id: int, model_type: str = "boruta") -> pd.DataFrame:
     selected_names = load_selected_feature_names_for_sector(sector_id, model_type=model_type)
-    final_df = load_all_final_prepared_features_for_sector(sector_id)
+    final_df = load_all_final_prepared_features_for_sector_v1(sector_id)
 
     if final_df.empty:
         logger.warning(f"No data found for sector {sector_id}")
@@ -98,3 +100,58 @@ def get_data_for_model_per_sector(sector_id: int, model_type: str = "boruta") ->
         return filter_final_by_selected(final_df, [], ALWAYS_KEEP)
 
     return filter_final_by_selected(final_df, selected_names, ALWAYS_KEEP)
+
+# V2 without calculations
+
+def load_all_final_prepared_features_for_sector_v2(sector_id: int) -> pd.DataFrame:
+    db = SessionLocal()
+    try:
+        companies = db.query(Company.id).filter(Company.sector_id == sector_id).all()
+        company_ids = [cid for (cid,) in companies]
+        if not company_ids:
+            logger.warning(f"No companies found for sector {sector_id}")
+            return pd.DataFrame()
+
+        q = db.query(FeaturesFinalPreparedV2).filter(FeaturesFinalPreparedV2.company_id.in_(company_ids))
+        df = pd.read_sql(q.statement, db.bind)
+
+        if df.empty:
+            logger.warning(f"No final prepared features found for sector {sector_id}")
+            return pd.DataFrame()
+        return df
+    except Exception as e:
+        logger.error(f"Error loading final prepared features for sector {sector_id}: {e}")
+        return pd.DataFrame()
+    finally:
+        db.close()
+
+def get_data_for_model_per_sector_v2(sector_id: int, model_type: str = "boruta") -> pd.DataFrame:
+    final_df = load_all_final_prepared_features_for_sector_v2(sector_id)
+
+    if final_df.empty:
+        logger.warning(f"No data found for sector {sector_id}")
+        return pd.DataFrame()
+
+    return final_df
+
+# V3 with transformations
+def load_all_final_prepared_features_for_sector_v3(sector_id: int) -> pd.DataFrame:
+    db = SessionLocal()
+    try:
+        company_ids = [cid for (cid,) in db.query(Company.id).filter(Company.sector_id == sector_id).all()]
+        if not company_ids:
+            logger.warning(f"No companies for sector {sector_id}")
+            return pd.DataFrame()
+        q = db.query(FeaturesFinalPreparedV3).filter(FeaturesFinalPreparedV3.company_id.in_(company_ids))
+        df = pd.read_sql(q.statement, db.bind)
+        if df.empty:
+            logger.warning(f"No V3 features for sector {sector_id}")
+        return df
+    except Exception as e:
+        logger.error(f"V3 load error sector {sector_id}: {e}")
+        return pd.DataFrame()
+    finally:
+        db.close()
+
+def get_data_for_model_per_sector_v3(sector_id: int) -> pd.DataFrame:
+    return load_all_final_prepared_features_for_sector_v3(sector_id)

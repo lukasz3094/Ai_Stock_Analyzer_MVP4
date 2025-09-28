@@ -28,7 +28,9 @@ class MacroBranchPipeline:
             self.transformed = pd.DataFrame()
             return
 
-        self.transformed = df[~df["date"].isin(self.existing_dates)]
+        df["date"] = pd.to_datetime(df["date"])
+        existing_dates = set(pd.to_datetime(list(self.existing_dates)))
+        self.transformed = df[~df["date"].isin(existing_dates)]
 
     def save(self):
         if self.transformed.empty:

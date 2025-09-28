@@ -30,4 +30,5 @@ boruta
 transformers
 tokenizers
 
-# spacy
+# LightGBM
+lightgbm
