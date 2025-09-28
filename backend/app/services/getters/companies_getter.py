@@ -79,3 +79,14 @@ def get_company_aliases_by_company_id(company_id):
         return []
     finally:
         db.close()
+
+def get_companies_by_group(group_name):
+    db = SessionLocal()
+    try:
+        companies = db.query(Company).filter(Company.groups.any(group_name)).all()
+        return companies
+    except Exception as e:
+        logger.error(f"Error fetching companies for group {group_name}: {e}")
+        return []
+    finally:
+        db.close()

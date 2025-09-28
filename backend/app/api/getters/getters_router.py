@@ -4,7 +4,8 @@ def include_getter_routers(app):
         features_getter,
         fundamentals_getter,
         macro_getter,
-        news_articles_getter
+        news_articles_getter,
+        companies_getter,
     )
 
     app.include_router(ohlcv_getter.router)
@@ -12,3 +13,4 @@ def include_getter_routers(app):
     app.include_router(fundamentals_getter.router)
     app.include_router(macro_getter.router)
     app.include_router(news_articles_getter.router)
+    app.include_router(companies_getter.router)

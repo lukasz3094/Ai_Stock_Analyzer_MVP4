@@ -13,6 +13,7 @@ class Company(Base):
     ticker_bankier = Column(String(10), nullable=True)
     sector_id = Column(Integer, ForeignKey("sectors.id"))
     is_active = Column(Boolean, nullable=False)
+    groups = Column(ARRAY(String), nullable=True)
 
 class Sector(Base):
     __tablename__ = "sectors"
