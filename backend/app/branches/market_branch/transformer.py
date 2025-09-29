@@ -1,6 +1,15 @@
 import pandas as pd
 import pandas_ta as ta
 
+def transform_market_data_base(df: pd.DataFrame) -> pd.DataFrame:
+    if df.empty:
+        return pd.DataFrame()
+
+    df["date"] = pd.to_datetime(df["date"])
+    df = df.sort_values("date")
+
+    return df
+
 def transform_market_data(df: pd.DataFrame, existing_keys: set) -> pd.DataFrame:
     if df.empty:
         return pd.DataFrame()

@@ -3,6 +3,7 @@ from sqlalchemy import select
 from app.core.config import SessionLocal
 from app.db.models import MarketData, Company, MarketFeaturesPrepared
 from contextlib import contextmanager
+from app.core.logger import logger
 
 @contextmanager
 def get_db():
@@ -18,23 +19,31 @@ def load_all_companies() -> pd.DataFrame:
         return pd.DataFrame(companies, columns=["id", "ticker"])
 
 def load_market_data(company_id: int) -> pd.DataFrame:
-    with get_db() as db:
-        rows = db.query(MarketData).filter(
-            MarketData.company_id == company_id
-        ).order_by(MarketData.date).all()
+    try:
+        with get_db() as db:
+            rows = db.query(MarketData).filter(
+                MarketData.company_id == company_id
+            ).order_by(MarketData.date).all()
 
-        if not rows:
-            return pd.DataFrame()
+            if not rows:
+                logger.info(f"Brak danych rynkowych dla company_id: {company_id}")
+                return pd.DataFrame()
 
-        return pd.DataFrame([{
-            "company_id": r.company_id,
-            "date": r.date,
-            "open": r.open,
-            "high": r.high,
-            "low": r.low,
-            "close": r.close,
-            "volume": r.volume
-        } for r in rows])
+            df = pd.DataFrame([{
+                "company_id": r.company_id,
+                "date": r.date,
+                "open": r.open,
+                "high": r.high,
+                "low": r.low,
+                "close": r.close,
+                "volume": r.volume
+            } for r in rows])
+            
+            return df
+            
+    except Exception as e:
+        logger.error(f"Błąd podczas ładowania danych rynkowych dla company_id {company_id}: {e}")
+        return pd.DataFrame()
 
 def load_existing_feature_keys() -> set:
     with get_db() as db:
