@@ -22,6 +22,6 @@ def transform_fundamentals(df: pd.DataFrame) -> pd.DataFrame:
             df[col] = df[col].replace(0, pd.NA)
 
     df = df.ffill().reset_index().rename(columns={"index": "date"})
-    df = df.dropna(subset=cols_to_replace)
+    # df = df.dropna(subset=cols_to_replace)
 
     return df

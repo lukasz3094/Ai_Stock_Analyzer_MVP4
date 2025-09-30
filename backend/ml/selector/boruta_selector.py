@@ -89,6 +89,7 @@ def run_boruta_for_all_sectors(parallel=True):
     db = SessionLocal()
     stmt = select(Company.sector_id).distinct()
     sectors = db.execute(stmt).scalars().all()
+    sectors = [int(s) for s in sectors if s is not None]
     db.close()
 
     if parallel:
@@ -112,11 +113,12 @@ def run_boruta_for_company(company_id: int):
         )
 
         df = pd.read_sql(query.statement, db.bind)
+        df = df.drop(columns=["high", "low", "open", "volume"])
 
         if df.empty:
             return f"Company {company_id} — no data"
 
-        sector_id = df["sector_id"].iloc[0]
+        sector_id = int(df["sector_id"].iloc[0])
 
         df = df.dropna(subset=["close"])
         if df.empty:
@@ -154,8 +156,8 @@ def run_boruta_for_company(company_id: int):
         }
 
         record = SelectedFeatures(
-            company_id=company_id,
-            sector_id=sector_id,
+            company_id=int(company_id),
+            sector_id=int(sector_id),
             run_date=date.today(),
             model_type="boruta",
             selected_features=selected,
@@ -177,6 +179,7 @@ def run_boruta_for_company(company_id: int):
 def run_boruta_for_wig_companies(parallel=True):
     companies = get_companies_by_group("wig20")
     company_ids = [company.id for company in companies]
+    company_ids = [int(c) for c in company_ids if c is not None]
 
     if parallel:
         with Pool(processes=1) as pool:

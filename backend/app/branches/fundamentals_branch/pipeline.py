@@ -1,8 +1,8 @@
 from app.branches.fundamentals_branch.extractor import (
-    load_all_companies,
     load_fundamentals
 )
 from app.branches.fundamentals_branch.transformer import transform_fundamentals
+from app.services.getters.companies_getter import get_companies_by_group
 from app.db.models import FundamentalsFeaturesPrepared
 from app.core.config import SessionLocal
 from sqlalchemy.dialects.postgresql import insert
@@ -14,11 +14,11 @@ class FundamentalsBranchPipeline:
         self.db = SessionLocal()
 
     def run(self):
-        companies = load_all_companies()
+        companies = get_companies_by_group("wig20")
 
-        for _, row in companies.iterrows():
-            company_id = row["id"]
-            ticker = row["ticker"]
+        for row in companies:
+            company_id = row.id
+            ticker = row.ticker
             logger.info(f"Przetwarzanie spółki {ticker}...")
 
             raw = load_fundamentals(company_id)

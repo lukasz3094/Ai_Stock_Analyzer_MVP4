@@ -32,3 +32,6 @@ tokenizers
 
 # LightGBM
 lightgbm
+
+torch
+torch_geometric

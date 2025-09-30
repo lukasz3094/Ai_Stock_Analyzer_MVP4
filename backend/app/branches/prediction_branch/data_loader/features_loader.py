@@ -3,10 +3,10 @@ import pandas as pd
 import numpy as np
 from app.core.logger import logger
 from app.core.config import SessionLocal
-from app.db.models import Company, FeaturesFinalPrepared, FeaturesFinalPreparedV2, FeaturesFinalPreparedV3, SelectedFeatures
+from app.db.models import Company, FeaturesFinalPrepared, FeaturesFinalPreparedV2, FeaturesFinalPreparedV3, SelectedFeatures, FeaturesPreparedWig20
 from sqlalchemy import desc
 
-ALWAYS_KEEP: Tuple[str, ...] = ("date", "company_id", "close")
+ALWAYS_KEEP: Tuple[str, ...] = ("date", "company_id", "close", "sector_id")
 
 # V1 with calculations
 
@@ -155,3 +155,45 @@ def load_all_final_prepared_features_for_sector_v3(sector_id: int) -> pd.DataFra
 
 def get_data_for_model_per_sector_v3(sector_id: int) -> pd.DataFrame:
     return load_all_final_prepared_features_for_sector_v3(sector_id)
+
+# WIG20
+def load_all_final_prepared_features_for_company(company_id: int) -> pd.DataFrame:
+    db = SessionLocal()
+    try:
+        q = db.query(FeaturesPreparedWig20).filter(FeaturesPreparedWig20.company_id == company_id)
+        df = pd.read_sql(q.statement, db.bind)
+
+        if df.empty:
+            logger.warning(f"No final prepared features found for company {company_id}")
+            return pd.DataFrame()
+        
+        selectedFeatures = db.query(SelectedFeatures).filter(SelectedFeatures.company_id == company_id).first()
+        if not selectedFeatures:
+            logger.warning(f"No selected features found for company {company_id}")
+            return df
+
+        for col in df.columns:
+            if col not in ALWAYS_KEEP and col not in (selectedFeatures.selected_features or []):
+                df = df.drop(columns=[col])
+        
+        return df
+    except Exception as e:
+        logger.error(f"Error loading final prepared features for company {company_id}: {e}")
+        return pd.DataFrame()
+    finally:
+        db.close()
+
+def get_data_for_model_per_company(company_id: int, model_type: str = "boruta") -> pd.DataFrame:
+    final_df = load_all_final_prepared_features_for_company(company_id)
+    if final_df.empty:
+        logger.warning(f"No data found for company {company_id}")
+        return pd.DataFrame()
+    
+    final_df = final_df.dropna(axis=1, how='all')
+
+    if final_df.empty:
+        logger.warning(f"No data found for company {company_id}")
+        return pd.DataFrame()
+
+    return final_df
+
