@@ -35,3 +35,5 @@ lightgbm
 
 torch
 torch_geometric
+
+xgboost

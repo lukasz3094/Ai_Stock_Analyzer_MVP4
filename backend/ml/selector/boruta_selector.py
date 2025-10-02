@@ -113,7 +113,7 @@ def run_boruta_for_company(company_id: int):
         )
 
         df = pd.read_sql(query.statement, db.bind)
-        df = df.drop(columns=["high", "low", "open", "volume"])
+        # df = df.drop(columns=["high", "low", "open", "volume"])
 
         if df.empty:
             return f"Company {company_id} — no data"
