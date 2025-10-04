@@ -92,6 +92,12 @@ class CompanyAlias(Base):
     is_primary = Column(Boolean, nullable=False)
     source = Column(String, nullable=False)
 
+class GpwSessions(Base):
+    __tablename__ = "gpw_sessions"
+
+    trade_date = Column(Date, primary_key=True)
+    is_trading_day = Column(Boolean, nullable=False)
+
 class ContextTag(Base):
     __tablename__ = "context_tags"
 
@@ -140,7 +146,6 @@ class FundamentalsFeaturesPrepared(Base):
     gross_profit = Column(Numeric, nullable=True)
     net_profit = Column(Numeric, nullable=True)
     ebitda = Column(Numeric, nullable=True)
-
 
 class MarketFeaturesPrepared(Base):
     __tablename__ = "market_features_prepared"
