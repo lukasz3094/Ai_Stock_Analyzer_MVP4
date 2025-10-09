@@ -1,0 +1,126 @@
+{
+  "data": {
+    "date_end": "2024-12-31"
+  },
+
+  "features": {
+    "n_lags_comment": "Liczba lagów rynkowych r_lag_1..n.",
+    "n_lags": 40,
+
+    "horizon_comment": "Horyzont prognozy w sesjach (np. 1, 5).",
+    "horizon": 5,
+
+    "target_style_comment": "'log' dla regresji log-zwrotu lub 'direction' dla klasyfikacji.",
+    "target_style": "log",
+
+    "winsorize_p_comment": "Winsoryzacja ogonów targetu (np. 0.005 = 0.5%). Ustaw null, by wyłączyć.",
+    "winsorize_p": 0.008,
+
+    "drop_ohlcv_comment": "Czy wyrzucać kolumny OHLCV (open/high/low/volume).",
+    "drop_ohlcv": false,
+
+    "add_indicators_comment": "Czy dodać RSI/MACD.",
+    "add_indicators": true,
+
+    "short_horizon_pack_comment": "Gdy true, makro/fund bez *_chg_* (lepsze dla t+1..t+5).",
+    "short_horizon_pack": true,
+
+    "known_lag_sessions": 1,
+    "add_company_id_feature": true,
+    "add_sector_id_feature": false
+  },
+
+  "train": {
+    "task_comment": "'reg' (regresja) lub 'clf' (klasyfikacja).",
+    "task": "reg",
+
+    "valid_size_comment": "Udział walidacji [0,1).",
+    "valid_size": 0.2,
+
+    "min_train_size_comment": "Minimalny rozmiar części treningowej (liczba wierszy).",
+    "min_train_size": 200,
+
+    "purge_gap_comment": "Szerokość luki (sesje) między train a valid (eliminuje przeciek).",
+    "purge_gap": 42,
+
+    "num_boost_round_comment": "Maksymalna liczba rund boostingu.",
+    "num_boost_round": 6000,
+
+    "early_stopping_rounds_comment": "Rundy bez poprawy do zatrzymania.",
+    "early_stopping_rounds": 600,
+
+    "seed_comment": "Seed losowy - przekazywany do XGBoost.",
+    "seed": 42,
+
+    "use_time_decay_comment": "Czy użyć wag czasowych (nowsze ważniejsze).",
+    "use_time_decay": false,
+
+    "half_life_days_comment": "Połowiczny zanik wag (w dniach sesyjnych).",
+    "half_life_days": 90,
+
+    "compute_scale_pos_weight_comment": "Dla klasyfikacji: automatycznie policz scale_pos_weight z rozkładu klas.",
+    "compute_scale_pos_weight": true,
+
+    "balance_companies": true
+  },
+
+  "xgb_params": {
+    "objective_comment": "reg:squarederror (regresja) / binary:logistic (klasyfikacja) itd.",
+    "objective": "reg:squarederror",
+
+    "eval_metric": ["rmse"],
+
+    "tree_method_comment": "hist / gpu_hist itd.",
+    "tree_method": "hist",
+
+    "grow_policy_comment": "lossguide / depthwise.",
+    "grow_policy": "depthwise",
+
+    "max_leaves_comment": "Limit liści (dla lossguide).",
+    "max_leaves": 0,
+
+    "base_score": 0.0,
+
+    "learning_rate_comment": "Krok uczenia (eta).",
+    "learning_rate": 0.05,
+
+    "max_depth_comment": "Maksymalna głębokość drzewa.",
+    "max_depth": 7,
+
+    "min_child_weight_comment": "Minimalna suma wag w węźle.",
+    "min_child_weight": 0.5,
+
+    "subsample_comment": "Udział próbek dla każdego drzewa.",
+    "subsample": 0.9,
+
+    "colsample_bytree_comment": "Udział cech dla każdego drzewa.",
+    "colsample_bytree": 0.9,
+
+    "lambda_comment": "Regularyzacja L2.",
+    "lambda": 1.0,
+
+    "alpha_comment": "Regularyzacja L1 (opcjonalna, 0 = wyłączona).",
+    "alpha": 0.0,
+
+    "gamma_comment": "Minimalny przyrost straty do splitu.",
+    "gamma": 0.0,
+
+    "max_bin": 512
+  },
+
+  "eval": {
+    "classification_threshold_comment": "Próg klasyfikacji dla binary:logistic (ignorowany przy regresji).",
+    "classification_threshold": 0.5
+  },
+
+  "report_comment": "Raportowanie i zapis wyników.",
+  "report": {
+    "top_features_n_comment": "Ilu top cech po gain wydrukować.",
+    "top_features_n": 20
+  },
+
+  "io": {
+    "save_model": false,
+    "model_path": "artifacts/xgb_model.json"
+  }
+}
