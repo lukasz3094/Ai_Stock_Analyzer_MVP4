@@ -7,7 +7,6 @@ MACRO = {"gdp", "cpi", "unemployment_rate", "interest_rate",
          "exchange_rate_eur", "exchange_rate_usd"}
 OHLCV = {"open", "high", "low", "volume"}
 
-# ---------- utils ----------
 def _pct_change_safe(s: pd.Series, periods: int) -> pd.Series:
     out = s.pct_change(periods=periods)
     return out.replace([np.inf, -np.inf], np.nan)
@@ -26,7 +25,6 @@ def _winsorize_series(s: pd.Series, p: float) -> pd.Series:
     lo, hi = s.quantile(p), s.quantile(1 - p)
     return s.clip(lower=lo, upper=hi)
 
-# ---------- target (GRUPOWO) ----------
 def make_target_grouped(
     df: pd.DataFrame,
     horizon: int,
@@ -35,7 +33,7 @@ def make_target_grouped(
 ) -> pd.Series:
     def _one(g: pd.DataFrame, company_id) -> pd.Series:
         g = g.copy()
-        g["company_id"] = company_id  # przywrócenie kolumny po include_groups=False
+        g["company_id"] = company_id
         close = pd.to_numeric(g["close"], errors="coerce")
         y_log = np.log(close.shift(-horizon)) - np.log(close)
         if style == "log":
@@ -48,7 +46,6 @@ def make_target_grouped(
           .apply(lambda g: _one(g, g.name), include_groups=False)
     )
 
-# ---------- techniczne (GRUPOWO) ----------
 def add_basic_technical_features_grouped(
     df: pd.DataFrame,
     n_lags: int,
@@ -118,7 +115,6 @@ def align_exogenous_grouped(
     present_macro = sorted(list(MACRO.intersection(out.columns)))
     created: List[str] = []
 
-    # FUND: per-company ffill + lag
     if present_fund:
         def _fund(g: pd.DataFrame, company_id) -> pd.DataFrame:
             g = g.copy()
@@ -143,7 +139,6 @@ def align_exogenous_grouped(
                 for w in change_windows:
                     created.append(f"{col}_chg_{w}d")
 
-    # MACRO: global ffill + lag
     if present_macro:
         out[present_macro] = out[present_macro].apply(pd.to_numeric, errors="coerce").ffill()
         for col in present_macro:
@@ -159,7 +154,6 @@ def align_exogenous_grouped(
 
     return out, created
 
-# ---------- kalendarz ----------
 def add_calendar_features(df: pd.DataFrame) -> Tuple[pd.DataFrame, List[str]]:
     out = df.copy()
     dow = out["date"].dt.weekday
@@ -198,7 +192,6 @@ def prepare_features(
     df = df.drop(columns=[c for c in ("id", "created_at") if c in df.columns], errors="ignore")
     df["date"] = pd.to_datetime(df["date"]).dt.normalize()
 
-    # krytyczne: sortowanie po company_id + date
     sort_cols = ["company_id", "date"] if "company_id" in df.columns else ["date"]
     df = df.sort_values(sort_cols).reset_index(drop=True)
 
@@ -211,7 +204,6 @@ def prepare_features(
     # techniczne per spółka
     df1, tech_cols = add_basic_technical_features_grouped(df, n_lags=n_lags, add_indicators=add_indicators)
 
-    # exogeny
     df2, exo_cols = align_exogenous_grouped(
         df1,
         include_changes=not short_horizon_pack,
@@ -219,10 +211,8 @@ def prepare_features(
         change_windows=[21, 63]
     )
 
-    # kalendarz
     df3, cal_cols = add_calendar_features(df2)
 
-    # meta cechy (opcjonalnie)
     extra_cols = []
     if add_company_id_feature and "company_id" in df3.columns:
         df3["company_id_num"] = pd.to_numeric(df3["company_id"], errors="coerce")
@@ -233,7 +223,6 @@ def prepare_features(
 
     feature_cols = tech_cols + exo_cols + cal_cols + extra_cols
 
-    # finalny frame – wymagaj kompletu cech, potem zgraj target po indeksie
     frame = df3[keep_meta + feature_cols].dropna(subset=feature_cols).copy()
     y = y.loc[frame.index]
 
@@ -242,7 +231,6 @@ def prepare_features(
         frame = pd.concat([frame[keep_meta], frame_no_meta], axis=1)
         feature_cols = [c for c in feature_cols if c in frame.columns]
 
-    # paramy startowe (i tak masz je z JSON)
     if target_style == "log":
         xgb_params = {"objective": "reg:squarederror", "eval_metric": ["rmse"]}
     else:

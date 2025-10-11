@@ -1,6 +1,6 @@
 # API
 fastapi
-uvicorn
+uvicorn[standard]
 python-dotenv
 pydantic
 
@@ -13,28 +13,31 @@ mlflow
 prefect
 
 # Data & Utils
-pandas==2.2.3
+pandas
 numpy==1.24.4
 joblib
 tqdm
 lxml
 yfinance
+pandas_ta
 
 # Modeling
 scikit-learn
 shap
 boruta
-statsmodels
 
 # Transformers stack
 transformers
 tokenizers
 
-# GBMs
+# LightGBM
 lightgbm
-xgboost
-catboost
 
-# DL
 torch
 torch_geometric
+
+xgboost
+
+statsmodels
+
+catboost

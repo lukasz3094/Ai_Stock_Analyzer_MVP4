@@ -12,7 +12,6 @@ from sklearn.metrics import (
     mean_squared_error, mean_absolute_error
 )
 
-# ====== utils: config ======
 def strip_comment_keys(obj):
     if isinstance(obj, dict):
         return {k: strip_comment_keys(v) for k, v in obj.items() if not k.endswith("_comment")}
@@ -39,7 +38,6 @@ def require_keys(dic: dict, keys: list[str], section: str):
         if k not in dic:
             raise KeyError(f"Missing required key '{k}' in section '{section}'")
 
-# ====== split with purge gap ======
 @dataclass
 class SplitResult:
     X_train: pd.DataFrame
@@ -75,14 +73,12 @@ def time_series_split_with_gap(
 
     return SplitResult(X_train, y_train, X_valid, y_valid, train_end, company_train, company_valid)
 
-# ====== time-decay weights ======
 def build_time_decay_weights(length: int, half_life_days: int) -> np.ndarray:
     decay = np.log(2) / half_life_days
     t = np.arange(length)
     w = np.exp(decay * t)
     return w / w.mean()
 
-# ====== train ======
 def train_xgb(
     frame: pd.DataFrame,
     feature_cols: list[str],
@@ -91,7 +87,6 @@ def train_xgb(
     xgb_params: dict,
     task: str,
 ):
-    # wymagane parametry dla splitu
     require_keys(cfg_train, ["valid_size", "min_train_size", "purge_gap",
                              "num_boost_round", "early_stopping_rounds",
                              "seed", "use_time_decay", "half_life_days",
@@ -106,15 +101,12 @@ def train_xgb(
         purge_gap=cfg_train["purge_gap"],
     )
 
-    # wagi
     weights = None
     if cfg_train.get("use_time_decay", False) or cfg_train.get("balance_companies", False):
-        # time-decay (opcjonalnie)
         td = np.ones(len(split.X_train), dtype=float)
         if cfg_train.get("use_time_decay", False):
             td = build_time_decay_weights(len(split.X_train), int(cfg_train["half_life_days"]))
 
-        # balance per company (opcjonalnie)
         bc = np.ones(len(split.X_train), dtype=float)
         if cfg_train.get("balance_companies", False):
             counts = split.company_train.value_counts()
@@ -122,7 +114,6 @@ def train_xgb(
             bc = inv.to_numpy(dtype=float)
 
         weights = td * bc
-        # normalizacja, by średnia waga = 1 (stabilność metryk/eta)
         weights *= (len(weights) / weights.sum())
 
     dtrain = xgb.DMatrix(split.X_train, label=split.y_train.values,
@@ -130,8 +121,7 @@ def train_xgb(
     dvalid = xgb.DMatrix(split.X_valid, label=split.y_valid.values,
                          feature_names=feature_cols)
 
-    params = xgb_params.copy()  # zero defaultów – wszystko z JSON
-    # ewentualne ważenie klas
+    params = xgb_params.copy()
     if task == "clf" and cfg_train["compute_scale_pos_weight"]:
         pos = float(split.y_train.sum())
         neg = float(len(split.y_train) - pos)
@@ -153,7 +143,6 @@ def train_xgb(
     print(f"[INFO] Best iteration: {best_iter}")
     return booster, split
 
-# ====== eval ======
 def evaluate_model(booster, split: SplitResult, feature_cols: list[str], cfg_eval: dict, task: str) -> dict:
     require_keys(cfg_eval, ["classification_threshold"], "eval")
     dvalid = xgb.DMatrix(split.X_valid, feature_names=feature_cols)
@@ -181,7 +170,6 @@ def evaluate_model(booster, split: SplitResult, feature_cols: list[str], cfg_eva
     print("[VALID METRICS]", metrics)
     return metrics
 
-# ====== FI ======
 def feature_importance_report(booster, feature_cols: list[str], cfg_report: dict) -> pd.DataFrame:
     require_keys(cfg_report, ["top_features_n"], "report")
     score = booster.get_score(importance_type="gain")
@@ -194,18 +182,14 @@ def feature_importance_report(booster, feature_cols: list[str], cfg_report: dict
     print(df.to_string(index=False))
     return df
 
-# ====== main ======
 if __name__ == "__main__":
     try:
-        # 1) wczytaj config
         cfg_path = Path(__file__).resolve().parent / "xgb_config.json"
         cfg = load_config(cfg_path)
         cfg = strip_comment_keys(cfg)
 
-        # wymagane sekcje
         require_keys(cfg, ["data", "features", "train", "xgb_params", "eval", "report"], "root")
 
-        # 2) pobierz dane
         data_cfg = cfg["data"]
         require_keys(data_cfg, ["date_end"], "data")
 
@@ -223,7 +207,6 @@ if __name__ == "__main__":
             df = df.sort_values("date").reset_index(drop=True)
             df_full = pd.concat([df_full, df], ignore_index=True)
 
-        # 3) przygotuj cechy
         feat_cfg = cfg["features"]
         require_keys(feat_cfg, ["n_lags", "horizon", "target_style", "winsorize_p",
                                 "drop_ohlcv", "add_indicators", "short_horizon_pack"], "features")
@@ -239,29 +222,25 @@ if __name__ == "__main__":
             add_indicators=bool(feat_cfg["add_indicators"]),
             short_horizon_pack=bool(feat_cfg["short_horizon_pack"]),
             remove_constant_features=True,
-            known_lag_sessions=int(feat_cfg["known_lag_sessions"]),    # NEW
-            add_company_id_feature=bool(feat_cfg["add_company_id_feature"]),  # NEW (opcjonalnie)
-            add_sector_id_feature=bool(feat_cfg["add_sector_id_feature"])     # NEW (opcjonalnie)
+            known_lag_sessions=int(feat_cfg["known_lag_sessions"]),
+            add_company_id_feature=bool(feat_cfg["add_company_id_feature"]),
+            add_sector_id_feature=bool(feat_cfg["add_sector_id_feature"])
         )
 
-        # 4) sanity targetu (bez defaultów)
         y = pd.to_numeric(y, errors="coerce").replace([np.inf, -np.inf], np.nan)
         valid_idx = y.dropna().index
         frame = frame.loc[valid_idx].reset_index(drop=True)
 
         if "company_id" not in frame.columns and "company_id" in df_full.columns:
-            # mapuj po indeksie (prepare_features nie miesza kolejności względem df_full poza dropna)
             frame = frame.join(df_full.loc[frame.index, ["company_id"]], how="left")
             if "company_id" not in frame.columns:
                 raise RuntimeError("Nie udało się przywrócić 'company_id' do frame.")
 
         y = y.loc[valid_idx].reset_index(drop=True)
 
-        # 5) task + parametry xgb
         train_cfg = cfg["train"]
-        task = str(require(train_cfg, "task", "train"))  # 'reg' lub 'clf'
+        task = str(require(train_cfg, "task", "train"))
 
-        # 6) trening
         booster, split = train_xgb(
             frame=frame,
             feature_cols=feature_cols,
@@ -271,11 +250,9 @@ if __name__ == "__main__":
             task=task,
         )
 
-        # 7) ewaluacja + FI
         metrics = evaluate_model(booster, split, feature_cols, cfg["eval"], task=task)
         feature_importance_report(booster, feature_cols, cfg["report"])
 
-        # 8) zapis modelu (opcjonalnie z JSON)
         io_cfg = cfg.get("io", {})
         if io_cfg.get("save_model", False):
             out_path = Path(io_cfg["model_path"])
