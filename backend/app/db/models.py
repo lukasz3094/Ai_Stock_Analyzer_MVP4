@@ -1,6 +1,6 @@
 from datetime import datetime
 from app.db.enums import SentimentLabel
-from sqlalchemy import Column, String, Integer, Numeric, Date, ForeignKey, Boolean, DateTime, Enum, ARRAY
+from sqlalchemy import Column, String, Integer, Numeric, Date, ForeignKey, Boolean, DateTime, Enum, ARRAY, UniqueConstraint, Index
 from sqlalchemy.dialects.postgresql import JSONB
 from app.core.config import Base
 
@@ -49,8 +49,8 @@ class MarketFeatures(Base):
     momentum = Column(Numeric)
     stochastic = Column(Numeric)
 
-class Fundamentals(Base):
-    __tablename__ = "fundamentals"
+class Fundamentals_backup(Base):
+    __tablename__ = "fundamentals_backup"
 
     id = Column(Integer, primary_key=True)
     company_id = Column(Integer, ForeignKey("companies.id"))
@@ -60,6 +60,30 @@ class Fundamentals(Base):
     gross_profit = Column(Numeric)
     net_profit = Column(Numeric)
     ebitda = Column(Numeric)
+
+class Fundamentals(Base):
+    __tablename__ = "fundamentals"
+
+    id = Column(Integer, primary_key=True)
+    company_id = Column(Integer, ForeignKey("companies.id", ondelete="CASCADE"), nullable=False)
+    date = Column(Date, nullable=False)
+
+    interest_income   = Column(Numeric)  # Przychody z tytułu odsetek (tys.)
+    fee_income        = Column(Numeric)  # Przychody z tytułu prowizji (tys.)
+    banking_result    = Column(Numeric)  # Wynik na działalności bankowej (tys.)
+    gross_profit      = Column(Numeric)  # Zysk (strata) brutto (tys.)
+    net_profit        = Column(Numeric)  # Zysk (strata) netto (tys.)*
+    amortization      = Column(Numeric)  # Amortyzacja (tys.)
+    assets            = Column(Numeric)  # Aktywa (tys.)
+    equity            = Column(Numeric)  # Kapitał własny (tys.)*
+    shares_thousands  = Column(Numeric)  # Liczba akcji (tys. szt.)
+    bvps              = Column(Numeric)  # Wartość księgowa na akcję (zł)
+    eps               = Column(Numeric)  # Zysk na akcję (zł)
+
+    __table_args__ = (
+        UniqueConstraint("company_id", "date", name="uq_fundamentals_company_date"),
+        Index("ix_fundamentals_company_date", "company_id", "date"),
+    )
 
 class MacroData(Base):
     __tablename__ = "macro_data"
@@ -209,32 +233,24 @@ class FeaturesFinalPrepared(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     company_id = Column(Integer, ForeignKey("companies.id"), nullable=False)
     date = Column(Date, nullable=False)
-    open = Column(Numeric, nullable=True)
-    high = Column(Numeric, nullable=True)
-    low = Column(Numeric, nullable=True)
     close = Column(Numeric, nullable=True)
-    volume = Column(Numeric, nullable=True)
-    sma_14 = Column(Numeric, nullable=True)
-    ema_14 = Column(Numeric, nullable=True)
-    rsi_14 = Column(Numeric, nullable=True)
-    macd = Column(Numeric, nullable=True)
-    macd_signal = Column(Numeric, nullable=True)
-    macd_hist = Column(Numeric, nullable=True)
-    revenue = Column(Numeric, nullable=True)
-    operating_profit = Column(Numeric, nullable=True)
     gross_profit = Column(Numeric, nullable=True)
     net_profit = Column(Numeric, nullable=True)
-    ebitda = Column(Numeric, nullable=True)
     gdp = Column(Numeric, nullable=True)
     cpi = Column(Numeric, nullable=True)
     unemployment_rate = Column(Numeric, nullable=True)
     interest_rate = Column(Numeric, nullable=True)
     exchange_rate_eur = Column(Numeric, nullable=True)
     exchange_rate_usd = Column(Numeric, nullable=True)
-    created_at = Column(DateTime, default=datetime.now)
-    # confidence_score_avg = Column(Numeric, nullable=True)
-    # confidence_score_sum = Column(Numeric, nullable=True)
-    # news_count = Column(Integer, default=0)
+    interest_income = Column(Numeric, nullable=True)
+    fee_income = Column(Numeric, nullable=True)
+    banking_result = Column(Numeric, nullable=True)
+    amortization = Column(Numeric, nullable=True)
+    assets = Column(Numeric, nullable=True)
+    equity = Column(Numeric, nullable=True)
+    shares_thousands = Column(Numeric, nullable=True)
+    bvps = Column(Numeric, nullable=True)
+    eps = Column(Numeric, nullable=True)
 
 class FeaturesFinalPreparedV2(Base):
     __tablename__ = "features_final_prepared_v2"

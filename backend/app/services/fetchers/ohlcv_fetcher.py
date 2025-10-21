@@ -156,7 +156,7 @@ def update_ohlcv_selected_companies(company_ids):
 
     db.close()
 
-# if __name__ == "__main__":
-#     companies = get_companies_by_group("wig20")
-#     company_ids = [company.id for company in companies]
-#     update_ohlcv_selected_companies(company_ids)
+if __name__ == "__main__":
+    companies = get_companies_by_group("wig-banki")
+    company_ids = [company.id for company in companies]
+    update_ohlcv_selected_companies(company_ids)

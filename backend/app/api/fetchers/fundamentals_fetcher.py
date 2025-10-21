@@ -1,5 +1,5 @@
 from fastapi import APIRouter
-from app.services.fetchers.fundamentals_fetcher import update_fundamentals_all_companies
+from app.services.fetchers.fundamentals_fetcher_backup import update_fundamentals_all_companies
 
 router = APIRouter()
 

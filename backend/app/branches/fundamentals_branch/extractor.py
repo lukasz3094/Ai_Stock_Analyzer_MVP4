@@ -23,11 +23,17 @@ def load_fundamentals(company_id: int) -> pd.DataFrame:
         return pd.DataFrame([{
             "company_id": r.company_id,
             "date": r.date,
-            "revenue": r.revenue,
-            "operating_profit": r.operating_profit,
+            "interest_income": r.interest_income,
+            "fee_income": r.fee_income,
+            "banking_result": r.banking_result,
             "gross_profit": r.gross_profit,
             "net_profit": r.net_profit,
-            "ebitda": r.ebitda
+            "amortization": r.amortization,
+            "assets": r.assets,
+            "equity": r.equity,
+            "shares_thousands": r.shares_thousands,
+            "bvps": r.bvps,
+            "eps": r.eps
         } for r in rows])
 
 def load_all_companies() -> pd.DataFrame:

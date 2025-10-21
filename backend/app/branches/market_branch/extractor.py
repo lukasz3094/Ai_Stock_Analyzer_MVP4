@@ -21,7 +21,7 @@ def load_all_companies() -> pd.DataFrame:
 def load_market_data(company_id: int) -> pd.DataFrame:
     try:
         with get_db() as db:
-            rows = db.query(MarketData).filter(
+            rows = db.query(MarketData.date, MarketData.close).filter(
                 MarketData.company_id == company_id
             ).order_by(MarketData.date).all()
 
@@ -30,13 +30,9 @@ def load_market_data(company_id: int) -> pd.DataFrame:
                 return pd.DataFrame()
 
             df = pd.DataFrame([{
-                "company_id": r.company_id,
+                "company_id": company_id,
                 "date": r.date,
-                "open": r.open,
-                "high": r.high,
-                "low": r.low,
-                "close": r.close,
-                "volume": r.volume
+                "close": r.close
             } for r in rows])
             
             return df
